@@ -1,0 +1,66 @@
+
+
+#include <opencv2/highgui/highgui.hpp>  
+#include <opencv2/imgproc/imgproc.hpp>  
+#include <opencv2/core/core.hpp>   
+#include <opencv2/opencv.hpp>   
+#include <opencv2/video/tracking.hpp>
+
+#define MAX_CORNERS 1000
+using namespace cv;
+using namespace std;
+ 
+
+int main()
+{
+	vector<Mat> imgs, grayImgs;
+	Mat img = imread("11.jpg"); imgs.push_back(img);
+	img = imread("22.jpg");     imgs.push_back(img);
+
+	for (size_t i = 0; i<imgs.size(); i++)
+	{
+		Mat grayImg; grayImg.create(imgs[i].rows, imgs[i].cols, CV_8UC1);
+		cvtColor(imgs[i], grayImg, CV_BGR2GRAY);
+		grayImgs.push_back(grayImg);
+	}
+
+	// 角点检测
+	vector<Point2f> vecCorners[2];
+	double qualityLevel = 0.01;//or 0.01  
+	double minDistance = 10;
+	goodFeaturesToTrack(grayImgs[0], vecCorners[0], MAX_CORNERS, qualityLevel, minDistance);
+
+
+	TermCriteria termcrit(CV_TERMCRIT_ITER | CV_TERMCRIT_EPS, 20, 0.03);
+	vector<uchar> status;
+	vector<float> err;
+
+	// 稀疏光流  sparse optical flow
+	calcOpticalFlowPyrLK(imgs[0], imgs[1], vecCorners[0], vecCorners[1], status, err, cvSize(21, 21), 3, termcrit, 0, 0.001);
+	for (size_t i = 0; i<vecCorners[0].size() && i<vecCorners[1].size(); i++)
+	{
+		Point p0 = Point(cvRound(vecCorners[0][i].x), cvRound(vecCorners[0][i].y));
+		Point p1 = Point(cvRound(vecCorners[1][i].x), cvRound(vecCorners[1][i].y));
+		line(imgs[1], p0, p1, CV_RGB(0, 50, 200), 1);
+	}
+	imshow("LK", imgs[1]);
+
+	// 稠密光流  Dense optical flow
+	Mat flow;
+	calcOpticalFlowFarneback(grayImgs[0], grayImgs[1], flow, 0.5, 3, 15, 3, 5, 1.2, 0);
+	for (int y = 0; y<imgs[0].rows; y += 10)
+	{
+		for (int x = 0; x<imgs[0].cols; x += 10)
+		{
+			Point2f fxy = flow.at<Point2f>(y, x);
+			line(imgs[0], Point(x, y), Point(cvRound(x + fxy.x), cvRound(y + fxy.y)), CV_RGB(0, 255, 0));
+			//circle(imgs[0], Point(x,y), 2, CV_RGB(255, 0, 0), -1);
+		}
+	}
+	imshow("Farneback", imgs[0]);
+
+	waitKey();
+	return 0;
+ 
+}
+ 
